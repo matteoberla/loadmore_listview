@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 typedef LoadMoreCallback = Future<void> Function();
 
@@ -23,6 +24,7 @@ class LoadMoreListView extends StatefulWidget {
     this.refreshStrokeWidth = RefreshProgressIndicator.defaultStrokeWidth,
     this.refreshTriggerMode = RefreshIndicatorTriggerMode.onEdge,
     //ListView.builder
+    this.scrollingParentController,
     this.controller,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -44,6 +46,10 @@ class LoadMoreListView extends StatefulWidget {
     //animation
     this.scrollToLoadMoreWidgetDuration = const Duration(milliseconds: 100),
     this.scrollToLoadMoreWidgetCurve = Curves.fastOutSlowIn,
+    //physics
+    this.physics = const ClampingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    ),
   })  : separatorBuilder = null,
         slivers = null,
         scrollBehavior = null,
@@ -71,6 +77,7 @@ class LoadMoreListView extends StatefulWidget {
     this.refreshStrokeWidth = RefreshProgressIndicator.defaultStrokeWidth,
     this.refreshTriggerMode = RefreshIndicatorTriggerMode.onEdge,
     //ListView.separated
+    this.scrollingParentController,
     this.controller,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -89,6 +96,10 @@ class LoadMoreListView extends StatefulWidget {
     //animation
     this.scrollToLoadMoreWidgetDuration = const Duration(milliseconds: 100),
     this.scrollToLoadMoreWidgetCurve = Curves.fastOutSlowIn,
+    //physics
+    this.physics = const ClampingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    ),
   })  : itemExtent = null,
         prototypeItem = null,
         semanticChildCount = null,
@@ -116,6 +127,7 @@ class LoadMoreListView extends StatefulWidget {
     this.refreshStrokeWidth = RefreshProgressIndicator.defaultStrokeWidth,
     this.refreshTriggerMode = RefreshIndicatorTriggerMode.onEdge,
     //ListView.separated
+    this.scrollingParentController,
     this.controller,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -132,6 +144,10 @@ class LoadMoreListView extends StatefulWidget {
     //animation
     this.scrollToLoadMoreWidgetDuration = const Duration(milliseconds: 100),
     this.scrollToLoadMoreWidgetCurve = Curves.fastOutSlowIn,
+    //physics
+    this.physics = const ClampingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    ),
   })  : this.slivers = slivers,
         this.itemExtent = null,
         this.prototypeItem = null,
@@ -167,6 +183,9 @@ class LoadMoreListView extends StatefulWidget {
 
   ///separatorBuilder like Listview
   final IndexedWidgetBuilder? separatorBuilder;
+
+  ///parent controller for the ListView
+  final ScrollController? scrollingParentController;
 
   ///controller like Listview
   final ScrollController? controller;
@@ -267,6 +286,9 @@ class LoadMoreListView extends StatefulWidget {
   /// CustomScrollView anchor
   final double anchor;
 
+  //---physics---
+  final ScrollPhysics physics;
+
   @override
   State<StatefulWidget> createState() => _LoadMoreListViewState();
 }
@@ -276,7 +298,13 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
   bool _isLoadMore = false;
 
   ///Whether to create ScrollController in State
+  late bool _isParentControllerCreateAtThisState;
+
+  ///Whether to create ScrollController in State
   late bool _isControllerCreateAtThisState;
+
+  ///Parents's ScrollController
+  late ScrollController? _parentScrollController;
 
   ///ListView's ScrollController
   late ScrollController _scrollController;
@@ -284,6 +312,10 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
   @override
   void initState() {
     super.initState();
+    //try to assign the parent controller
+    _parentScrollController = widget.scrollingParentController;
+    _isParentControllerCreateAtThisState =
+        widget.scrollingParentController == null;
     //If there is no controller, assign one
     _scrollController = widget.controller ?? ScrollController();
     _isControllerCreateAtThisState = widget.controller == null;
@@ -291,34 +323,28 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
 
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollEndNotification>(
-      onNotification: (ScrollEndNotification scrollEnd) {
-        final metrics = scrollEnd.metrics;
-        if (!metrics.atEdge) return true;
-        if (metrics.pixels == 0) return true;
-
-        loadMore();
-        return true;
-      },
-      child: widget.onRefresh == null
-          ? getListViewWidget()
-          : RefreshIndicator(
-              onRefresh: widget.onRefresh!,
-              backgroundColor: widget.refreshBackgroundColor,
-              displacement: widget.refreshDisplacement,
-              edgeOffset: widget.refreshEdgeOffset,
-              color: widget.refreshColor,
-              semanticsLabel: widget.refreshSemanticsLabel,
-              semanticsValue: widget.refreshSemanticsValue,
-              strokeWidth: widget.refreshStrokeWidth,
-              triggerMode: widget.refreshTriggerMode,
-              child: getListViewWidget(),
-            ),
-    );
+    return widget.onRefresh == null
+        ? getListViewWidget()
+        : RefreshIndicator(
+            onRefresh: widget.onRefresh!,
+            backgroundColor: widget.refreshBackgroundColor,
+            displacement: widget.refreshDisplacement,
+            edgeOffset: widget.refreshEdgeOffset,
+            color: widget.refreshColor,
+            semanticsLabel: widget.refreshSemanticsLabel,
+            semanticsValue: widget.refreshSemanticsValue,
+            strokeWidth: widget.refreshStrokeWidth,
+            triggerMode: widget.refreshTriggerMode,
+            child: getListViewWidget(),
+          );
   }
 
   @override
   void dispose() {
+    if (_parentScrollController != null &&
+        _isParentControllerCreateAtThisState) {
+      _parentScrollController?.dispose();
+    }
     if (_isControllerCreateAtThisState) {
       _scrollController.dispose();
     }
@@ -338,11 +364,9 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
   Widget _getListViewBuilderWidget() {
     return ListView.builder(
       controller: _scrollController,
-      physics: const ClampingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      physics: widget.physics,
       itemBuilder: itemBuilder,
-      itemCount: widget.itemCount + (_isLoadMore ? 1 : 0),
+      itemCount: widget.itemCount + 1,
       //ListView
       scrollDirection: widget.scrollDirection,
       reverse: widget.reverse,
@@ -372,7 +396,7 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
       ),
       separatorBuilder: widget.separatorBuilder!,
       itemBuilder: itemBuilder,
-      itemCount: widget.itemCount + (_isLoadMore ? 1 : 0),
+      itemCount: widget.itemCount + 1,
       //ListView
       scrollDirection: widget.scrollDirection,
       reverse: widget.reverse,
@@ -399,10 +423,9 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
       ),
       slivers: [
         ...widget.slivers!,
-        if (_isLoadMore)
-          SliverToBoxAdapter(
-            child: _getLoadMoreWidget(),
-          ),
+        SliverToBoxAdapter(
+          child: _getLoadMoreWidget(),
+        ),
       ],
       scrollDirection: widget.scrollDirection,
       reverse: widget.reverse,
@@ -424,7 +447,10 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
     //index is usually less than itemCount, if it is equal, it means loading
     if (index == widget.itemCount) {
       return _getLoadMoreWidget();
+    } else if (index > widget.itemCount) {
+      return SizedBox();
     }
+    print(index);
     return widget.itemBuilder!(context, index);
   }
 
@@ -436,12 +462,23 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
     //If there is no onLoadMore call back, jump out
     if (widget.onLoadMore == null) return;
 
-    setState(() {
-      //is loading
-      _isLoadMore = true;
-    });
+    if (mounted) {
+      setState(() {
+        //is loading
+        _isLoadMore = true;
+      });
+    }
+
     //wait isLoadMore setState
     await Future.delayed(const Duration(milliseconds: 50));
+    //scroll the parent if was set
+    if (_parentScrollController != null) {
+      _parentScrollController!.animateTo(
+        _parentScrollController!.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.fastOutSlowIn,
+      );
+    }
     //scroll to loadMoreWidget
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
@@ -450,20 +487,45 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
     );
     //call onLoadMore
     await widget.onLoadMore!();
-    setState(() {
-      //loaded
-      _isLoadMore = false;
-    });
+    if (mounted) {
+      setState(() {
+        //loaded
+        _isLoadMore = false;
+      });
+    }
   }
 
   Widget _getLoadMoreWidget() {
-    return widget.loadMoreWidget ??
-        Container(
-          margin: const EdgeInsets.all(20.0),
-          alignment: Alignment.center,
-          child: const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
-          ),
-        );
+    return VisibilityDetector(
+      key: Key("loading-widget-key"),
+      onVisibilityChanged: (VisibilityInfo info) {
+        if (info.visibleFraction == 1) {
+          //entire widget is visible
+          loadMore();
+        }
+      },
+      child: Builder(
+        builder: (context) {
+          if (_isLoadMore) {
+            //loading widget
+            return widget.loadMoreWidget ??
+                Container(
+                  margin: const EdgeInsets.all(20.0),
+                  alignment: Alignment.center,
+                  child: const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation(Colors.blueAccent),
+                  ),
+                );
+          } else {
+            //placeholder to notify the VisibilityDetector
+            // that the user reached the end of the list
+            return SizedBox(
+              height: 1,
+              width: 1,
+            );
+          }
+        },
+      ),
+    );
   }
 }

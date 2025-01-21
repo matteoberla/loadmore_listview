@@ -18,8 +18,10 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     Tab(text: 'builder'),
     Tab(text: 'separated'),
     Tab(text: 'customScrollView'),
+    Tab(text: 'builder with ScrollParent'),
   ];
   late TabController _tabController;
+  final ScrollController _parentScrollController = ScrollController();
   bool _hasNextData = true;
   List<String> list = [];
   final _chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz';
@@ -45,8 +47,8 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
               controller: _tabController,
               labelColor: Colors.black,
               tabs: _tabs,
-              onTap: (index) {
-                getList();
+              onTap: (index) async {
+                WidgetsBinding.instance.addPostFrameCallback((_) => getList());
               },
             ),
             Expanded(
@@ -131,6 +133,52 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                       )
                     ],
                   ),
+                  SingleChildScrollView(
+                    controller: _parentScrollController,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text("A Text Widget"),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: ElevatedButton(
+                            onPressed: () async {},
+                            child: const Text("A Button Widget"),
+                          ),
+                        ),
+                        LoadMoreListView.builder(
+                          shrinkWrap: true,
+                          scrollingParentController: _parentScrollController,
+                          physics: const NeverScrollableScrollPhysics(),
+                          hasMoreItem: _hasNextData,
+                          onLoadMore: loaMoreList,
+                          onRefresh: refreshList,
+                          //you can set your loadMore Animation
+                          loadMoreWidget: Container(
+                            margin: const EdgeInsets.all(20.0),
+                            alignment: Alignment.center,
+                            child: const CircularProgressIndicator(
+                              valueColor:
+                                  AlwaysStoppedAnimation(Colors.blueAccent),
+                            ),
+                          ),
+                          //ListView
+                          itemCount: list.length,
+                          itemBuilder: (context, index) {
+                            return Container(
+                              margin: const EdgeInsets.all(30),
+                              width: double.infinity,
+                              alignment: Alignment.center,
+                              child: Text(index.toString()),
+                            );
+                          },
+                        )
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -165,6 +213,6 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
     });
   }
 
-  String getRandomString(int length) => String.fromCharCodes(
-      Iterable.generate(length, (_) => _chars.codeUnitAt(_rnd.nextInt(_chars.length))));
+  String getRandomString(int length) => String.fromCharCodes(Iterable.generate(
+      length, (_) => _chars.codeUnitAt(_rnd.nextInt(_chars.length))));
 }
