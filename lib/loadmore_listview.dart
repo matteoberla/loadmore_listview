@@ -450,7 +450,6 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
     } else if (index > widget.itemCount) {
       return SizedBox();
     }
-    print(index);
     return widget.itemBuilder!(context, index);
   }
 
