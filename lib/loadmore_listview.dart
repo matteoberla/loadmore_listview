@@ -391,9 +391,7 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
   Widget _getListViewSeparatedWidget() {
     return ListView.separated(
       controller: _scrollController,
-      physics: const ClampingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      physics: widget.physics,
       separatorBuilder: widget.separatorBuilder!,
       itemBuilder: itemBuilder,
       itemCount: widget.itemCount + 1,
@@ -418,9 +416,7 @@ class _LoadMoreListViewState extends State<LoadMoreListView> {
   Widget _getCustomScrollView() {
     return CustomScrollView(
       controller: _scrollController,
-      physics: const ClampingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
+      physics: widget.physics,
       slivers: [
         ...widget.slivers!,
         SliverToBoxAdapter(
